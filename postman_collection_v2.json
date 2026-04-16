@@ -1,0 +1,1489 @@
+{
+  "info": {
+    "name": "User API - Global Authentication Microservice",
+    "description": "Complete user authentication and management API with global route access control",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3002", "type": "string" },
+    { "key": "verificationCodeId", "value": "", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "tenantId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    {
+      "key": "internalApiKey",
+      "value": "your-internal-api-key-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Public Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health check successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.service).to.eql('user-api');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Superadmin Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@brighton.com\",\n  \"password\": \"Super123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Superadmin login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.tokens).to.have.property('accessToken');",
+                  "    pm.expect(response.data.tokens).to.have.property('refreshToken');",
+                  "    ",
+                  "    // Store tokens for other requests",
+                  "    pm.collectionVariables.set('accessToken', response.data.tokens.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', response.data.tokens.refreshToken);",
+                  "    pm.collectionVariables.set('userId', response.data.user.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User Registration",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123\",\n  \"phoneNumber\": \"+1234567890\",\n  \"roleName\": \"ADMIN\",\n  \"userType\": \"admin\",\n  \"description\": \"Test user for API testing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('User registration successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "profile"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get profile successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Super123\",\n  \"newPassword\": \"NewSuper123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "change-password"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Change password successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "refresh"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token refresh successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.tokens).to.have.property('accessToken');",
+                  "    ",
+                  "    // Update access token",
+                  "    pm.collectionVariables.set('accessToken', response.data.tokens.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "logout"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Logout successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forget Password - Send Verification Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@testschool.com\",\n  \"type\": \"FORGET_PASSWORD\",\n  \"tenantName\": \"Test School\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/forget-password/send-verification",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "user",
+                "api",
+                "v1",
+                "auth",
+                "forget-password",
+                "send-verification"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Send verification email successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.message).to.include('verification code');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forget Password - Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@testschool.com\",\n  \"type\": \"FORGET_PASSWORD\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/forget-password/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "auth", "forget-password", "verify"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify OTP successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('verificationCodeId');",
+                  "    ",
+                  "    // Store verification code ID for next request",
+                  "    if (response.data.verificationCodeId) {",
+                  "        pm.collectionVariables.set('verificationCodeId', response.data.verificationCodeId);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forget Password - Update Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@testschool.com\",\n  \"verificationCodeId\": \"{{verificationCodeId}}\",\n  \"type\": \"FORGET_PASSWORD\",\n  \"newPassword\": \"NewPass123\",\n  \"tenantName\": \"Test School\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/auth/forget-password/update-password",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "user",
+                "api",
+                "v1",
+                "auth",
+                "forget-password",
+                "update-password"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update password successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.message).to.include('Password updated');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tenant Management",
+      "item": [
+        {
+          "name": "Get All Tenants",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants?pageNo=1&pageSize=10&filter[profileStatus]=active&sort[createdAt]=-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants"],
+              "query": [
+                {
+                  "key": "pageNo",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Items per page (default: 10)"
+                },
+                {
+                  "key": "filter[profileStatus]",
+                  "value": "active",
+                  "description": "Filter by profile status (active, inactive)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort[createdAt]",
+                  "value": "-1",
+                  "description": "Sort by createdAt (-1 for descending, 1 for ascending)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get all tenants successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('tenants');",
+                  "    ",
+                  "    // Store first tenant ID if available",
+                  "    if (response.data.tenants && response.data.tenants.length > 0) {",
+                  "        pm.collectionVariables.set('tenantId', response.data.tenants[0].id);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolName\": \"Test School\",\n  \"schoolAddress\": \"123 Test Street\",\n  \"city\": \"Test City\",\n  \"state\": \"Test State\",\n  \"countryCode\": \"US\",\n  \"zipCode\": \"12345\",\n  \"schoolPhone\": \"+1234567890\",\n  \"adminEmail\": \"admin@testschool.com\",\n  \"demoPassword\": \"Demo123\",\n  \"profileStatus\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create tenant successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "    ",
+                  "    // Store tenant ID",
+                  "    pm.collectionVariables.set('tenantId', response.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tenant by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "{{tenantId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get tenant by ID successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tenant by Name",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/by-name/Test School",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "by-name", "Test School"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get tenant by name successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Tenant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolName\": \"Updated Test School\",\n  \"city\": \"Updated City\",\n  \"profileStatus\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "{{tenantId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update tenant successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Tenant",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "{{tenantId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete tenant successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tenant Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/dashboard/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "dashboard", "metrics"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get dashboard metrics successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tenant Status Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/tenants/status/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "tenants", "status", "stats"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get status stats successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Partner Management",
+      "item": [
+        {
+          "name": "Create Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnersField\": \"Education Partner\",\n  \"companyName\": \"ABC Education Solutions\",\n  \"supportEmail\": \"support@abc.com\",\n  \"partnerLogo\": \"https://example.com/logo.png\",\n  \"colourTheme\": [\n    {\n      \"key\": \"primary\",\n      \"value\": \"#3B82F6\"\n    },\n    {\n      \"key\": \"secondary\",\n      \"value\": \"#10B981\"\n    }\n  ],\n  \"sidebarGradient\": \"linear-gradient(135deg, #667eea 0%, #764ba2 100%)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "partners"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create partner successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners?pageNo=1&pageSize=10&sort[createdAt]=-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "partners"],
+              "query": [
+                {
+                  "key": "pageNo",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Items per page (default: 10)"
+                },
+                {
+                  "key": "sort[createdAt]",
+                  "value": "-1",
+                  "description": "Sort by createdAt (-1 for descending, 1 for ascending)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get all partners successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('partners');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Partner by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners/:partnerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "partners", ":partnerId"],
+              "variable": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Partner ID"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get partner by ID successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Partner",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Updated ABC Education\",\n  \"supportEmail\": \"newsupport@abc.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners/:partnerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "partners", ":partnerId"],
+              "variable": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Partner ID"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update partner successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Partner",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners/:partnerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "api", "v1", "partners", ":partnerId"],
+              "variable": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Partner ID"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete partner successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set Default Partner",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners/:partnerId/set-default",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "user",
+                "api",
+                "v1",
+                "partners",
+                ":partnerId",
+                "set-default"
+              ],
+              "variable": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Partner ID"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Set default partner successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.isDefault).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Partner Tenants",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/api/v1/partners/:partnerId/tenants?pageNo=1&pageSize=10&sortBy=schoolName&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "user",
+                "api",
+                "v1",
+                "partners",
+                ":partnerId",
+                "tenants"
+              ],
+              "query": [
+                {
+                  "key": "pageNo",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Items per page (default: 10)"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "schoolName",
+                  "description": "Field to sort by (schoolName, city, createdAt, etc.)"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc",
+                  "description": "Sort order: asc or desc"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Partner ID"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get partner tenants successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.have.property('partner');",
+                  "    pm.expect(response.data).to.have.property('tenants');",
+                  "    pm.expect(response.data).to.have.property('pagination');",
+                  "    pm.expect(response.data.pagination).to.have.property('total');",
+                  "    pm.expect(response.data.pagination).to.have.property('pageNo');",
+                  "    pm.expect(response.data.pagination).to.have.property('pageSize');",
+                  "    pm.expect(response.data.pagination).to.have.property('totalPages');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Internal API",
+      "item": [
+        {
+          "name": "Internal Health Check",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Internal health check successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate User",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/validate-user?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "validate-user"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "User ID to validate"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate user successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "{{userId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get user by ID successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Users by IDs",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\"{{userId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/users/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "users", "batch"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get users by IDs successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"internaluser\",\n  \"firstName\": \"Internal\",\n  \"lastName\": \"User\",\n  \"email\": \"internal@example.com\",\n  \"password\": \"Internal123\",\n  \"roleName\": \"TEACHER\",\n  \"userType\": \"teacher\",\n  \"tenantId\": \"{{tenantId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "create"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create user successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check User Exists",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/check-user-exists?tenantId={{tenantId}}&email=test@example.com",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "check-user-exists"],
+              "query": [
+                {
+                  "key": "tenantId",
+                  "value": "{{tenantId}}",
+                  "description": "Required: Tenant ID"
+                },
+                {
+                  "key": "email",
+                  "value": "test@example.com",
+                  "description": "Email to check (or use username)"
+                },
+                {
+                  "key": "username",
+                  "value": "",
+                  "description": "Username to check (or use email)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Check user exists successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"User\",\n  \"email\": \"updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/{{userId}}/update",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "{{userId}}", "update"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update user successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/{{userId}}/delete",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "{{userId}}", "delete"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete user successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User Role",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/{{userId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "{{userId}}", "role"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get user role successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/user/{{userId}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "user", "{{userId}}", "permissions"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get user permissions successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"permission\": \"EXAMS:CREATE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/validate-permission",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "validate-permission"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate permission successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tenant by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{internalApiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/tenant/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "tenant", "{{tenantId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get tenant by ID successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"{{tenantId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/validate-tenant",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "validate-tenant"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate tenant successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"users\": [\n    {\n      \"username\": \"bulkuser1\",\n      \"firstName\": \"Bulk\",\n      \"lastName\": \"User1\",\n      \"email\": \"bulk1@example.com\",\n      \"password\": \"Bulk123\",\n      \"roleName\": \"TEACHER\",\n      \"userType\": \"teacher\",\n      \"tenantId\": \"{{tenantId}}\"\n    },\n    {\n      \"username\": \"bulkuser2\",\n      \"firstName\": \"Bulk\",\n      \"lastName\": \"User2\",\n      \"email\": \"bulk2@example.com\",\n      \"password\": \"Bulk123\",\n      \"roleName\": \"STUDENT\",\n      \"userType\": \"student\",\n      \"tenantId\": \"{{tenantId}}\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/users/bulk-create",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "users", "bulk-create"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bulk create users successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Update Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updates\": [\n    {\n      \"userId\": \"{{userId}}\",\n      \"data\": {\n        \"firstName\": \"Updated\",\n        \"lastName\": \"User\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/users/bulk-update",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "users", "bulk-update"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bulk update users successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync User Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"data\": {\n    \"firstName\": \"Synced\",\n    \"lastName\": \"User\",\n    \"email\": \"synced@example.com\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/sync/user-data",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "sync", "user-data"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Sync user data successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync Tenant Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{internalApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"{{tenantId}}\",\n  \"data\": {\n    \"schoolName\": \"Synced School\",\n    \"city\": \"Synced City\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/internal/sync/tenant-data",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "internal", "sync", "tenant-data"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Sync tenant data successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

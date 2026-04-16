@@ -1,0 +1,1767 @@
+# Brighton AI Education Platform - Complete Exam Module Implementation Guide
+
+## 🏗️ Project Overview & Architecture
+
+### **System Architecture**
+- **Multi-tenant LMS** with 5 User Roles
+- **Microservices Architecture** with shared-lib for common utilities
+- **High Performance** optimized for large data volumes
+- **Real-time Features** with WebSocket integration
+- **AI-Powered** exam generation and grading
+
+### **User Roles & Permissions**
+1. **Super Admin** - Global access across all tenants
+2. **Admin** - Tenant-level management and configuration
+3. **Teacher** - Class/Subject management, exam creation, grading
+4. **Student** - Exam taking, results viewing, progress tracking
+5. **Parent** - Child monitoring and progress oversight
+
+### **Technology Stack**
+- **Backend:** Node.js, Express.js, TypeScript
+- **Database:** MongoDB with optimized indexing
+- **Caching:** Redis for performance
+- **File Storage:** AWS S3 with CDN
+- **Real-time:** WebSocket for live updates
+- **AI Integration:** OpenAI/Claude for question generation
+
+---
+
+## 📊 Database Schema Design & Best Practices
+
+### **Database Design Principles**
+1. **Normalization:** Proper 3NF structure with minimal redundancy
+2. **Indexing Strategy:** Optimized indexes for high-performance queries
+3. **Data Relationships:** Clear foreign key relationships with proper constraints
+4. **Scalability:** Designed for horizontal scaling with sharding support
+5. **Performance:** Aggregation pipelines for complex analytics
+
+### **Core Tables Structure (24 Tables)**
+
+#### 1. **Exam Modes (Admin Management)**
+```typescript
+ExamMode {
+  _id: ObjectId
+  name: string (Mid Term, Final Term, Quiz, Assignment)
+  description: string
+  isActive: boolean
+  tenantId: ObjectId
+  createdBy: ObjectId (Admin ID)
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 2. **Grading System (Admin Management)**
+```typescript
+GradingSystem {
+  _id: ObjectId
+  name: string (A+, A, B+, B, C+, C, D, F)
+  minPercentage: number (90, 85, 80, 75, 70, 65, 50, 0)
+  maxPercentage: number (100, 89, 84, 79, 74, 69, 64, 49)
+  gradePoint: number (4.0, 3.7, 3.3, 3.0, 2.7, 2.3, 2.0, 0)
+  tenantId: ObjectId
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 3. **Exams (Teacher Management) - MAIN EXAM TABLE**
+```typescript
+Exam {
+  _id: ObjectId
+  examTitle: string
+  description: string
+  classId: ObjectId
+  subjectId: ObjectId
+  batchId: ObjectId
+  examType: ExamTypeEnum (Official, Practice, Exam Repository)
+  examModeId: ObjectId (FK to ExamMode)
+  totalMarks: number
+  maxAttempts: number
+  durationInMinutes: number
+  startOn: Date
+  endOn: Date
+  examStatus: ExamStatusEnum (Draft, Unpublished, Published, Completed, Cancelled)
+  teacherId: ObjectId
+  tenantId: ObjectId
+  isDeleted: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// INDEXES FOR PERFORMANCE:
+// - { tenantId: 1, teacherId: 1, examStatus: 1 }
+// - { classId: 1, subjectId: 1, examStatus: 1 }
+// - { startOn: 1, endOn: 1 }
+// - { examType: 1, examStatus: 1 }
+```
+
+#### 4. **Exam Students (Many-to-Many)**
+```typescript
+ExamStudent {
+  _id: ObjectId
+  examId: ObjectId
+  studentId: ObjectId
+  classId: ObjectId
+  subjectId: ObjectId
+  batchId: ObjectId
+  tenantId: ObjectId
+  isActive: boolean
+  createdAt: Date
+}
+```
+
+#### 5. **Exam Questions - QUESTIONS STORED WITH EXAM**
+```typescript
+ExamQuestion {
+  _id: ObjectId
+  examId: ObjectId
+  questionNumber: number (1, 2, 3...)
+  questionType: QuestionTypeEnum (MCQs, FillInBlanks, TrueFalse, ShortAnswers, LongAnswers)
+  questionGenerateType: QuestionGenerateTypeEnum (Manually, QuestionBank, ExternalLibrary, AIGenerated, AIModifiedByTeacher)
+  questionText: string
+  questionContent: string[] (S3 paths for images/files)
+  marks: number
+  options: QuestionOption[] (for MCQs)
+  correctAnswer: string | string[]
+  successRate: number (percentage)
+  difficulty: DifficultyEnum (Easy, Medium, Hard)
+  subjectId: ObjectId
+  classId: ObjectId
+  teacherId: ObjectId
+  tenantId: ObjectId
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+QuestionOption {
+  optionId: string (A, B, C, D)
+  optionText: string
+  isCorrect: boolean
+  optionContent?: string[] (S3 paths for images)
+}
+
+// INDEXES FOR PERFORMANCE:
+// - { examId: 1, questionNumber: 1 }
+// - { examId: 1, questionType: 1 }
+// - { tenantId: 1, subjectId: 1, questionType: 1 }
+```
+
+#### 6. **Exam Contents (File Management)**
+```typescript
+ExamContent {
+  _id: ObjectId
+  examId: ObjectId
+  fileName: string
+  filePath: string (S3 path)
+  fileType: string
+  fileSize: number
+  uploadedBy: ObjectId (Teacher ID)
+  tenantId: ObjectId
+  createdAt: Date
+}
+```
+
+#### 7. **AI Prompt History Logs**
+```typescript
+ExamAIPromptHistory {
+  _id: ObjectId
+  examId: ObjectId
+  questionId: ObjectId
+  prompt: string
+  response: string
+  model: string
+  tokensUsed: number
+  teacherId: ObjectId
+  tenantId: ObjectId
+  createdAt: Date
+}
+```
+
+#### 8. **Question Bank (Reusable Questions)**
+```typescript
+QuestionBank {
+  _id: ObjectId
+  questionText: string
+  questionType: QuestionTypeEnum
+  questionContent: string[]
+  marks: number
+  options: QuestionOption[]
+  correctAnswer: string | string[]
+  subjectId: ObjectId
+  classId: ObjectId
+  teacherId: ObjectId
+  tenantId: ObjectId
+  tags: string[]
+  difficulty: DifficultyEnum
+  usageCount: number
+  successRate: number
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 9. **Student Exam Attempts**
+```typescript
+ExamAttempt {
+  _id: ObjectId
+  examId: ObjectId
+  studentId: ObjectId
+  classId: ObjectId
+  subjectId: ObjectId
+  batchId: ObjectId
+  attemptNumber: number
+  startTime: Date
+  endTime: Date
+  totalMarks: number
+  obtainedMarks: number
+  percentage: number
+  grade: string
+  classRank: number
+  status: AttemptStatusEnum (InProgress, WaitingForGrading, Completed, Abandoned)
+  timeSpent: number (minutes)
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 10. **Exam Attempt Logs (Detailed Answers)**
+```typescript
+ExamAttemptLog {
+  _id: ObjectId
+  attemptId: ObjectId
+  questionId: ObjectId
+  studentAnswer: string | string[]
+  selectedOptions: string[]
+  isCorrect: boolean
+  marksObtained: number
+  timeSpent: number (seconds)
+  isFlagged: boolean
+  isSkipped: boolean
+  tenantId: ObjectId
+  createdAt: Date
+}
+```
+
+#### 11. **Student Credentials**
+```typescript
+StudentCredential {
+  _id: ObjectId
+  studentId: ObjectId
+  classId: ObjectId
+  subjectId: ObjectId
+  credentialTitle: string
+  credentialType: CredentialTypeEnum (Badge, Certificate, Award)
+  description: string
+  issuedDate: Date
+  expiryDate?: Date
+  credentialContent: string[] (S3 paths for certificates)
+  issuedBy: ObjectId (Teacher ID)
+  tenantId: ObjectId
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 12. **Parent Management**
+```typescript
+Parent {
+  _id: ObjectId
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  address: string
+  relationship: string (Father, Mother, Guardian)
+  children: ObjectId[] (Student IDs)
+  tenantId: ObjectId
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 13. **Exam Settings & Configuration**
+```typescript
+ExamSettings {
+  _id: ObjectId
+  examId: ObjectId
+  isAdaptiveDifficultyEnabled: boolean
+  allowedQuestionTypes: QuestionTypeEnum[]
+  aiGenerationPrompt: string
+  contentExternalLink: string
+  percipioContentLibraryIntegration: boolean
+  moeDelimaRepositoryIntegration: boolean
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 14. **AI Feedback Management**
+```typescript
+AIFeedback {
+  _id: ObjectId
+  attemptId: ObjectId
+  questionId: ObjectId
+  feedbackText: string
+  feedbackType: FeedbackTypeEnum (Motivational, Constructive, Improvement)
+  isGeneratedByAI: boolean
+  teacherId: ObjectId
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 15. **Recommended Resources**
+```typescript
+RecommendedResource {
+  _id: ObjectId
+  attemptId: ObjectId
+  resourceTitle: string
+  resourceType: ResourceTypeEnum (Article, Video, Course, Document)
+  resourceUrl: string
+  resourceDescription: string
+  isGeneratedByAI: boolean
+  teacherId: ObjectId
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 16. **Teacher Inbox**
+```typescript
+TeacherInbox {
+  _id: ObjectId
+  teacherId: ObjectId
+  senderId: ObjectId (Admin, Parent, Student, System)
+  senderType: SenderTypeEnum (Admin, Parent, Student, System)
+  subject: string
+  message: string
+  isRead: boolean
+  priority: PriorityEnum (Low, Medium, High, Urgent)
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 17. **Class Analytics & Performance**
+```typescript
+ClassAnalytics {
+  _id: ObjectId
+  classId: ObjectId
+  subjectId: ObjectId
+  topicId: ObjectId
+  averageScore: number
+  totalStudents: number
+  passingStudents: number
+  failingStudents: number
+  performanceTrend: PerformanceTrendEnum (Improving, Declining, Stable)
+  aiSuggestions: string[]
+  tenantId: ObjectId
+  calculatedAt: Date
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 18. **Student Activity Log**
+```typescript
+StudentActivityLog {
+  _id: ObjectId
+  studentId: ObjectId
+  activityType: ActivityTypeEnum (ExamCompleted, PracticeCompleted, BadgeEarned, CertificateEarned)
+  activityDescription: string
+  relatedEntityId: ObjectId (Exam ID, Credential ID, etc.)
+  relatedEntityType: string
+  classId: ObjectId
+  subjectId: ObjectId
+  tenantId: ObjectId
+  createdAt: Date
+}
+```
+
+#### 19. **Student Performance Analytics**
+```typescript
+StudentPerformanceAnalytics {
+  _id: ObjectId
+  studentId: ObjectId
+  classId: ObjectId
+  subjectId: ObjectId
+  topicId: ObjectId
+  currentRank: number
+  nationalRank: number
+  averageScore: number
+  performanceTrend: PerformanceTrendEnum (Improving, Declining, Stable)
+  strongestArea: string
+  weakArea: string
+  examPace: number (average time per question in seconds)
+  improvementPercentage: number
+  lastCalculated: Date
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 20. **Student Exam Progress**
+```typescript
+StudentExamProgress {
+  _id: ObjectId
+  studentId: ObjectId
+  examId: ObjectId
+  attemptId: ObjectId
+  currentQuestionIndex: number
+  totalQuestions: number
+  answeredQuestions: number
+  flaggedQuestions: number
+  timeRemaining: number (seconds)
+  isCompleted: boolean
+  lastActivityAt: Date
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 21. **Student Recommendations**
+```typescript
+StudentRecommendation {
+  _id: ObjectId
+  studentId: ObjectId
+  recommendationType: RecommendationTypeEnum (RetryQuestions, ReviseTopic, PracticeExam, WatchVideo, ReadArticle)
+  title: string
+  description: string
+  targetEntityId: ObjectId (Question IDs, Topic ID, Exam ID, etc.)
+  targetEntityType: string
+  priority: PriorityEnum (Low, Medium, High, Urgent)
+  isCompleted: boolean
+  completedAt?: Date
+  generatedBy: string (AI, Teacher, System)
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+#### 22. **Student Subject Progress**
+```typescript
+StudentSubjectProgress {
+  _id: ObjectId
+  studentId: ObjectId
+  subjectId: ObjectId
+  classId: ObjectId
+  currentGrade: string
+  averageScore: number
+  totalExams: number
+  completedExams: number
+  topicPerformance: TopicPerformance[]
+  lastExamDate: Date
+  improvementTrend: PerformanceTrendEnum
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+
+TopicPerformance {
+  topicId: ObjectId
+  topicName: string
+  score: number
+  totalQuestions: number
+  lastAttemptDate: Date
+}
+```
+
+#### 23. **Student Exam History**
+```typescript
+StudentExamHistory {
+  _id: ObjectId
+  studentId: ObjectId
+  examId: ObjectId
+  attemptNumber: number
+  score: number
+  totalMarks: number
+  percentage: number
+  grade: string
+  timeTaken: number (seconds)
+  attemptedDate: Date
+  status: AttemptStatusEnum
+  isNewHighScore: boolean
+  improvementPercentage?: number
+  tags: string[] (Practice, Official, New High Score, First Time, etc.)
+  tenantId: ObjectId
+  createdAt: Date
+}
+```
+
+#### 24. **Student Credential Progress**
+```typescript
+StudentCredentialProgress {
+  _id: ObjectId
+  studentId: ObjectId
+  credentialType: CredentialTypeEnum
+  totalEarned: number
+  thisMonthEarned: number
+  lastEarnedDate: Date
+  progressPercentage: number
+  nextMilestone: string
+  tenantId: ObjectId
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+---
+
+## 🔧 Shared Library Enums
+
+### **Add to shared-lib/src/enums/**
+
+```typescript
+// Exam Enums
+export enum ExamTypeEnum {
+  OFFICIAL = 'Official',
+  PRACTICE = 'Practice',
+  EXAM_REPOSITORY = 'Exam Repository'
+}
+
+export enum ExamStatusEnum {
+  DRAFT = 'Draft',
+  UNPUBLISHED = 'Unpublished',
+  PUBLISHED = 'Published',
+  IN_PROGRESS = 'In Progress',
+  COMPLETED = 'Completed',
+  CANCELLED = 'Cancelled'
+}
+
+export enum QuestionTypeEnum {
+  MCQS = 'MCQs',
+  FILL_IN_BLANKS = 'Fill in the Blanks',
+  TRUE_FALSE = 'True/False',
+  SHORT_ANSWERS = 'Short Answers',
+  LONG_ANSWERS = 'Long Answers'
+}
+
+export enum QuestionGenerateTypeEnum {
+  MANUALLY = 'Manually',
+  QUESTION_BANK = 'Question Bank',
+  EXTERNAL_LIBRARY = 'External Library',
+  AI_GENERATED = 'AI Generated',
+  AI_MODIFIED_BY_TEACHER = 'AI Generated but modified by teacher'
+}
+
+export enum AttemptStatusEnum {
+  IN_PROGRESS = 'In Progress',
+  WAITING_FOR_GRADING = 'Waiting for Grading',
+  COMPLETED = 'Completed',
+  ABANDONED = 'Abandoned'
+}
+
+export enum CredentialTypeEnum {
+  BADGE = 'Badge',
+  CERTIFICATE = 'Certificate',
+  AWARD = 'Award'
+}
+
+export enum DifficultyEnum {
+  EASY = 'Easy',
+  MEDIUM = 'Medium',
+  HARD = 'Hard'
+}
+
+export enum FeedbackTypeEnum {
+  MOTIVATIONAL = 'Motivational',
+  CONSTRUCTIVE = 'Constructive',
+  IMPROVEMENT = 'Improvement'
+}
+
+export enum ResourceTypeEnum {
+  ARTICLE = 'Article',
+  VIDEO = 'Video',
+  COURSE = 'Course',
+  DOCUMENT = 'Document'
+}
+
+export enum SenderTypeEnum {
+  ADMIN = 'Admin',
+  PARENT = 'Parent',
+  STUDENT = 'Student',
+  SYSTEM = 'System'
+}
+
+export enum PriorityEnum {
+  LOW = 'Low',
+  MEDIUM = 'Medium',
+  HIGH = 'High',
+  URGENT = 'Urgent'
+}
+
+export enum PerformanceTrendEnum {
+  IMPROVING = 'Improving',
+  DECLINING = 'Declining',
+  STABLE = 'Stable'
+}
+
+export enum ActivityTypeEnum {
+  EXAM_COMPLETED = 'ExamCompleted',
+  PRACTICE_COMPLETED = 'PracticeCompleted',
+  BADGE_EARNED = 'BadgeEarned',
+  CERTIFICATE_EARNED = 'CertificateEarned'
+}
+
+export enum RecommendationTypeEnum {
+  RETRY_QUESTIONS = 'RetryQuestions',
+  REVISE_TOPIC = 'ReviseTopic',
+  PRACTICE_EXAM = 'PracticeExam',
+  WATCH_VIDEO = 'WatchVideo',
+  READ_ARTICLE = 'ReadArticle'
+}
+
+export enum ExamModeEnum {
+  PRACTICE = 'Practice',
+  OFFICIAL = 'Official',
+  EXAM_LIBRARY = 'Exam Library'
+}
+
+export enum ExamStatusTagEnum {
+  IN_PROGRESS = 'In Progress',
+  ADAPTIVE_DIFFICULTY = 'Adaptive Difficulty',
+  WARNING_SCORE = 'Warning Score',
+  RECENT = 'Recent',
+  NEW_HIGH_SCORE = 'New High Score',
+  FIRST_TIME = 'First Time',
+  RECOMMENDED = 'Recommended',
+  NEED_IMPROVEMENT = 'Need Improvement'
+}
+```
+
+---
+
+## 🚀 Complete API Implementation Guide
+
+### **API Design Principles**
+1. **RESTful Design:** Standard HTTP methods and status codes
+2. **Consistent Naming:** Clear, descriptive endpoint names
+3. **Proper Validation:** Zod schemas for all request/response validation
+4. **Error Handling:** Standardized error responses
+5. **Pagination:** All list endpoints support pagination
+6. **Filtering:** Advanced filtering and search capabilities
+7. **Caching:** Redis caching for frequently accessed data
+8. **Rate Limiting:** Protection against abuse
+
+### **Response Format Standards**
+```typescript
+// Success Response
+{
+  success: true,
+  message: string,
+  data: any,
+  pagination?: {
+    page: number,
+    limit: number,
+    total: number,
+    totalPages: number
+  }
+}
+
+// Error Response
+{
+  success: false,
+  message: string,
+  error: string,
+  statusCode: number
+}
+```
+
+---
+
+## 📋 **ADMIN APIs (academy-api)**
+
+#### **Exam Modes Management**
+```
+POST   /academy/api/v1/exam-modes
+- Purpose: Create new exam mode (Mid Term, Final Term, Quiz, Assignment)
+- Request Body: { name: string, description: string }
+- Response: Created exam mode with ID
+- Validation: Unique name per tenant
+- Access: Admin only
+
+GET    /academy/api/v1/exam-modes
+- Purpose: List all exam modes for tenant
+- Query Params: ?page=1&limit=10&search=term&isActive=true
+- Response: Paginated list of exam modes
+- Caching: Redis cache for 1 hour
+- Access: Admin, Teacher
+
+GET    /academy/api/v1/exam-modes/:id
+- Purpose: Get specific exam mode details
+- Response: Complete exam mode object
+- Caching: Redis cache for 1 hour
+- Access: Admin, Teacher
+
+PUT    /academy/api/v1/exam-modes/:id
+- Purpose: Update exam mode
+- Request Body: { name?: string, description?: string, isActive?: boolean }
+- Response: Updated exam mode
+- Validation: Check if mode is used in any exams
+- Access: Admin only
+
+DELETE /academy/api/v1/exam-modes/:id
+- Purpose: Soft delete exam mode
+- Response: Success message
+- Validation: Check if mode is used in any exams
+- Access: Admin only
+```
+
+#### **Grading System Management**
+```
+POST   /academy/api/v1/grading-systems     - Create grading system
+GET    /academy/api/v1/grading-systems     - List grading systems
+PUT    /academy/api/v1/grading-systems/:id - Update grading system
+DELETE /academy/api/v1/grading-systems/:id - Delete grading system
+```
+
+### **Teacher Dashboard APIs (academy-api)**
+
+#### **Dashboard Analytics & Summary**
+```
+GET    /academy/api/v1/teacher/dashboard/summary           - Get dashboard summary (total students, class scores, subject performance)
+GET    /academy/api/v1/teacher/dashboard/class-analytics   - Get class analytics with radar chart data
+GET    /academy/api/v1/teacher/dashboard/top-students      - Get top performing students with rankings
+GET    /academy/api/v1/teacher/dashboard/student-activity  - Get recent student activity feed
+GET    /academy/api/v1/teacher/dashboard/gap-analysis      - Get gap analysis for struggling topics
+GET    /academy/api/v1/teacher/dashboard/ai-suggestions    - Get AI-powered improvement suggestions
+```
+
+#### **Class Management & Analytics**
+```
+GET    /academy/api/v1/teacher/classes                     - Get teacher's active classes
+GET    /academy/api/v1/teacher/classes/:classId/students   - Get students in specific class
+GET    /academy/api/v1/teacher/classes/:classId/analytics  - Get detailed class performance analytics
+GET    /academy/api/v1/teacher/classes/:classId/subjects   - Get subjects for specific class
+GET    /academy/api/v1/teacher/classes/:classId/topics     - Get topic-wise performance breakdown
+```
+
+---
+
+## 👨‍🏫 **TEACHER APIs (academy-api)**
+
+### **Exam Management - Core CRUD Operations**
+
+#### **Create Exam (5-Step Workflow)**
+```
+POST   /academy/api/v1/exams
+- Purpose: Create new exam in draft status
+- Request Body: {
+    examTitle: string,
+    description: string,
+    classId: ObjectId,
+    subjectId: ObjectId,
+    batchId: ObjectId,
+    examType: ExamTypeEnum,
+    examModeId: ObjectId,
+    totalMarks: number,
+    maxAttempts: number,
+    durationInMinutes: number,
+    startOn: Date,
+    endOn: Date
+  }
+- Response: Created exam with ID and draft status
+- Validation: Check teacher has access to class/subject
+- Access: Teacher only
+
+PUT    /academy/api/v1/exams/:id
+- Purpose: Update exam details (only in draft status)
+- Request Body: Same as create (all fields optional)
+- Response: Updated exam object
+- Validation: Only allow updates in draft status
+- Access: Teacher (owner only)
+
+GET    /academy/api/v1/exams
+- Purpose: List teacher's exams with advanced filtering
+- Query Params: 
+  ?page=1&limit=10&status=Published&examType=Official&classId=123&subjectId=456&search=math
+- Response: Paginated list with exam cards data
+- Caching: Redis cache for 5 minutes
+- Access: Teacher only
+
+GET    /academy/api/v1/exams/:id
+- Purpose: Get complete exam details with questions
+- Response: Full exam object with questions array
+- Caching: Redis cache for 10 minutes
+- Access: Teacher (owner only)
+
+POST   /academy/api/v1/exams/:id/publish
+- Purpose: Publish exam (change status from Draft to Published)
+- Validation: Check all required fields are filled, questions exist
+- Response: Updated exam with Published status
+- Access: Teacher (owner only)
+
+POST   /academy/api/v1/exams/:id/unpublish
+- Purpose: Unpublish exam (change status from Published to Unpublished)
+- Response: Updated exam with Unpublished status
+- Access: Teacher (owner only)
+
+DELETE /academy/api/v1/exams/:id
+- Purpose: Soft delete exam (only if no attempts exist)
+- Response: Success message
+- Validation: Check if any students have attempted
+- Access: Teacher (owner only)
+
+GET    /academy/api/v1/exams/statistics
+- Purpose: Get exam statistics for dashboard cards
+- Response: {
+    totalExams: number,
+    completed: number,
+    inProgress: number,
+    scheduled: number,
+    averageScore: number
+  }
+- Caching: Redis cache for 2 minutes
+- Access: Teacher only
+```
+
+#### **Exam Creation Workflow (5-Step Process)**
+```
+POST   /academy/api/v1/exams/:id/exam-info     - Step 1: Save exam basic details
+POST   /academy/api/v1/exams/:id/content-upload - Step 2: Upload content and AI prompts
+POST   /academy/api/v1/exams/:id/exam-builder  - Step 3: Build questions with AI assistance
+GET    /academy/api/v1/exams/:id/preview       - Step 4: Preview exam
+POST   /academy/api/v1/exams/:id/publishing    - Step 5: Publish exam
+```
+
+#### **AI-Powered Exam Builder**
+```
+POST   /academy/api/v1/ai/generate-questions       - Generate questions from uploaded content
+POST   /academy/api/v1/ai/modify-question          - Modify existing questions
+POST   /academy/api/v1/ai/run-simulations          - Run exam simulations and get recommendations
+POST   /academy/api/v1/ai/chat                     - Interactive AI chat for exam building
+GET    /academy/api/v1/ai/prompt-history           - Get AI prompt history
+POST   /academy/api/v1/ai/apply-recommendations    - Apply AI recommendations to exam
+```
+
+#### **Question Management**
+```
+POST   /academy/api/v1/exams/:examId/questions     - Add question to exam
+PUT    /academy/api/v1/questions/:id               - Update question
+DELETE /academy/api/v1/questions/:id               - Delete question
+GET    /academy/api/v1/exams/:examId/questions     - Get exam questions
+```
+
+#### **Question Bank Management**
+```
+POST   /academy/api/v1/question-bank               - Add to question bank
+GET    /academy/api/v1/question-bank               - List question bank
+PUT    /academy/api/v1/question-bank/:id           - Update question
+DELETE /academy/api/v1/question-bank/:id           - Delete question
+POST   /academy/api/v1/question-bank/search        - Search questions
+```
+
+#### **AI Integration**
+```
+POST   /academy/api/v1/ai/generate-questions       - Generate questions via AI
+POST   /academy/api/v1/ai/modify-question          - Modify AI question
+GET    /academy/api/v1/ai/prompt-history           - Get AI prompt history
+```
+
+#### **Grading Management & Workflow**
+```
+GET    /academy/api/v1/grading/dashboard           - Get grading dashboard with summary statistics
+GET    /academy/api/v1/grading/classes             - Get classes for grading
+GET    /academy/api/v1/grading/subjects/:classId   - Get subjects for class
+GET    /academy/api/v1/grading/exams/:examId       - Get exam results with filtering
+GET    /academy/api/v1/grading/exams/:examId/students - Get student grading list with search/filter
+GET    /academy/api/v1/grading/exams/:examId/question-success-rates - Get question-wise success rates
+GET    /academy/api/v1/grading/exams/:examId/analytics - Get exam analytics (pass rate, average score, etc.)
+POST   /academy/api/v1/grading/auto-grade          - Auto grade exam
+```
+
+#### **Detailed Grading Process (3-Step Workflow)**
+```
+GET    /academy/api/v1/grading/process/:attemptId/exam-info    - Step 1: Get exam info and student answers
+POST   /academy/api/v1/grading/process/:attemptId/feedback     - Step 2: Generate and manage AI feedback
+POST   /academy/api/v1/grading/process/:attemptId/resources    - Step 3: Generate recommended resources
+POST   /academy/api/v1/grading/process/:attemptId/submit       - Submit final grading result
+```
+
+#### **AI-Powered Grading & Feedback**
+```
+POST   /academy/api/v1/ai/generate-feedback        - Generate AI feedback for student answers
+POST   /academy/api/v1/ai/modify-feedback          - Modify AI-generated feedback
+POST   /academy/api/v1/ai/generate-resources       - Generate recommended learning resources
+POST   /academy/api/v1/ai/grading-chat             - Interactive AI chat for grading assistance
+GET    /academy/api/v1/ai/grading-suggestions      - Get AI suggestions for grading improvements
+```
+
+#### **Credential Management**
+```
+GET    /academy/api/v1/credentials/dashboard        - Get credential dashboard with summary statistics
+GET    /academy/api/v1/credentials/repository       - Get credential repository (available credential types)
+POST   /academy/api/v1/credentials                  - Create new credential type
+GET    /academy/api/v1/credentials/issued           - Get issued credentials with filtering
+POST   /academy/api/v1/credentials/issue            - Issue credential to student
+PUT    /academy/api/v1/credentials/:id              - Update credential
+DELETE /academy/api/v1/credentials/:id              - Delete credential
+GET    /academy/api/v1/credentials/analytics        - Get credential analytics and statistics
+```
+
+#### **Teacher Utilities**
+```
+GET    /academy/api/v1/teacher/active-classes      - Get teacher's active classes
+GET    /academy/api/v1/teacher/class-subjects/:classId - Get subjects for class
+GET    /academy/api/v1/teacher/inbox               - Get teacher's inbox messages
+POST   /academy/api/v1/teacher/inbox/reply         - Reply to inbox message
+```
+
+---
+
+## 🎓 **STUDENT APIs (academy-api)**
+
+### **Student Dashboard - Complete Analytics**
+
+#### **Dashboard Summary & Performance**
+```
+GET    /academy/api/v1/student/dashboard/summary
+- Purpose: Get complete dashboard overview data
+- Response: {
+    currentRank: number,
+    nationalRank: number,
+    rankChange: number, // +36 or -5
+    averageScore: number, // 85.5%
+    totalExams: number,
+    completedExams: number,
+    upcomingExams: number,
+    achievements: {
+      badges: number,
+      certificates: number,
+      awards: number
+    }
+  }
+- Caching: Redis cache for 5 minutes
+- Access: Student only
+
+GET    /academy/api/v1/student/dashboard/performance
+- Purpose: Get performance analytics with radar chart data
+- Response: {
+    subjectPerformance: {
+      subjectId: ObjectId,
+      subjectName: string,
+      averageScore: number,
+      grade: string,
+      topicPerformance: [
+        {
+          topicName: string,
+          score: number,
+          totalQuestions: number
+        }
+      ]
+    }[],
+    radarChartData: {
+      topics: string[],
+      scores: number[]
+    },
+    aiFeedback: {
+      strengths: string[],
+      weaknesses: string[],
+      recommendations: string[]
+    }
+  }
+- Caching: Redis cache for 10 minutes
+- Access: Student only
+
+GET    /academy/api/v1/student/dashboard/upcoming-exams
+- Purpose: Get upcoming exams for student
+- Response: [
+    {
+      examId: ObjectId,
+      examTitle: string,
+      subject: string,
+      duration: number,
+      questions: number,
+      startOn: Date,
+      examType: ExamTypeEnum
+    }
+  ]
+- Caching: Redis cache for 2 minutes
+- Access: Student only
+
+GET    /academy/api/v1/student/dashboard/recent-activity
+- Purpose: Get recent activity feed
+- Response: [
+    {
+      activityType: ActivityTypeEnum,
+      description: string,
+      timestamp: Date,
+      relatedEntityId: ObjectId,
+      relatedEntityType: string
+    }
+  ]
+- Caching: Redis cache for 1 minute
+- Access: Student only
+
+GET    /academy/api/v1/student/dashboard/achievements
+- Purpose: Get recent achievements summary
+- Response: {
+    recentAchievements: [
+      {
+        credentialId: ObjectId,
+        title: string,
+        type: CredentialTypeEnum,
+        issuedDate: Date,
+        issuerName: string
+      }
+    ],
+    totalCounts: {
+      badges: number,
+      certificates: number,
+      awards: number
+    }
+  }
+- Caching: Redis cache for 15 minutes
+- Access: Student only
+```
+
+#### **Exam Management**
+```
+GET    /academy/api/v1/student/exams/available            - Get available exams with filtering (Practice, Official, Library)
+GET    /academy/api/v1/student/exams/statistics           - Get exam statistics (Total, Completed, In Progress, Average Score)
+GET    /academy/api/v1/student/exams/queue                - Get exam queue (available exams to take)
+GET    /academy/api/v1/student/exams/performed            - Get performed exams with filtering
+GET    /academy/api/v1/student/exams/:examId/details      - Get exam details
+```
+
+#### **Exam Taking Process**
+```
+POST   /academy/api/v1/student/exams/:examId/start        - Start exam attempt
+GET    /academy/api/v1/student/attempts/:id/questions    - Get exam questions for attempt
+POST   /academy/api/v1/student/attempts/:id/answer       - Submit answer for question
+POST   /academy/api/v1/student/attempts/:id/flag         - Flag/unflag question
+GET    /academy/api/v1/student/attempts/:id/progress     - Get attempt progress
+POST   /academy/api/v1/student/attempts/:id/submit       - Submit exam attempt
+POST   /academy/api/v1/student/attempts/:id/continue     - Continue existing attempt
+POST   /academy/api/v1/student/attempts/:id/retake       - Retake exam
+```
+
+#### **Results & Performance Analytics**
+```
+GET    /academy/api/v1/student/results/dashboard          - Get results dashboard with subject progress
+GET    /academy/api/v1/student/results/exam/:attemptId   - Get detailed exam result with question review
+GET    /academy/api/v1/student/results/history/:examId   - Get exam attempt history
+GET    /academy/api/v1/student/results/subject-progress   - Get subject-wise progress with radar chart
+GET    /academy/api/v1/student/results/performance-trend  - Get performance trend analysis
+GET    /academy/api/v1/student/results/ai-feedback        - Get AI-generated performance feedback
+```
+
+#### **Credentials & Achievements**
+```
+GET    /academy/api/v1/student/credentials/dashboard      - Get credentials dashboard with summary
+GET    /academy/api/v1/student/credentials/all            - Get all earned credentials with filtering
+GET    /academy/api/v1/student/credentials/:id/details    - Get credential details with modal view
+GET    /academy/api/v1/student/credentials/statistics     - Get credential statistics (Total, Awards, Badges, Certificates, CPD)
+GET    /academy/api/v1/student/credentials/recent         - Get recently earned credentials
+```
+
+#### **Recommended Tasks & Learning**
+```
+GET    /academy/api/v1/student/recommendations/tasks      - Get recommended learning tasks
+GET    /academy/api/v1/student/recommendations/resources  - Get recommended learning resources
+GET    /academy/api/v1/student/recommendations/retry      - Get questions to retry
+GET    /academy/api/v1/student/recommendations/weak-topics - Get weak topics for revision
+```
+
+#### **Student Profile & Settings**
+```
+GET    /academy/api/v1/student/profile                    - Get student profile information
+PUT    /academy/api/v1/student/profile                    - Update student profile
+GET    /academy/api/v1/student/settings                   - Get student settings
+PUT    /academy/api/v1/student/settings                   - Update student settings
+POST   /academy/api/v1/student/change-password           - Change password
+```
+
+### **Parent APIs (academy-api)**
+
+#### **Child Monitoring**
+```
+GET    /academy/api/v1/parent/children             - Get children list
+GET    /academy/api/v1/parent/child/:id/exams      - Get child's exams
+GET    /academy/api/v1/parent/child/:id/results    - Get child's results
+GET    /academy/api/v1/parent/child/:id/progress   - Get child's progress
+```
+
+---
+
+## 🎯 Implementation Requirements
+
+### **Performance Optimization**
+- **Database Indexing:** Create indexes on frequently queried fields
+- **Caching:** Implement Redis caching for exam questions and results
+- **Pagination:** All list APIs must support pagination
+- **File Storage:** Use S3 for all file uploads with CDN
+- **Real-time Updates:** WebSocket for live exam monitoring
+
+### **Security & Validation**
+- **Input Validation:** Zod schemas for all request validation
+- **File Upload Security:** Validate file types and sizes
+- **Rate Limiting:** Prevent exam cheating with time limits
+- **Access Control:** Proper role-based access for all endpoints
+
+### **Business Logic**
+- **Exam Status Management:** Automatic status updates based on time
+- **Auto-grading:** For MCQs, True/False, Fill in blanks
+- **Manual Grading:** For subjective questions
+- **Ranking System:** Class-wise ranking calculation
+- **Credential System:** Automatic credential assignment based on performance
+
+### **Reporting & Analytics**
+- **Exam Performance:** Detailed analytics for teachers
+- **Student Progress:** Comprehensive progress tracking
+- **Class Statistics:** Overall class performance metrics
+- **Export Features:** PDF/Excel export for reports
+
+---
+
+## 📋 Development Checklist
+
+### **Phase 1: Database & Models**
+- [ ] Create all database schemas
+- [ ] Add enums to shared-lib
+- [ ] Set up database indexes
+- [ ] Create model files with validation
+
+### **Phase 2: Core APIs**
+- [ ] Admin exam modes & grading APIs
+- [ ] Teacher exam management APIs
+- [ ] Question bank management
+- [ ] AI integration endpoints
+
+### **Phase 3: Student Features**
+- [ ] Exam taking functionality
+- [ ] Result calculation
+- [ ] Progress tracking
+- [ ] Credential system
+
+### **Phase 4: Advanced Features**
+- [ ] Real-time monitoring
+- [ ] Analytics & reporting
+- [ ] File management
+- [ ] Performance optimization
+
+### **Phase 5: Testing & Documentation**
+- [ ] Comprehensive Postman collection
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] API documentation
+
+---
+
+## 🔄 Data Flow
+
+1. **Admin** creates exam modes and grading systems
+2. **Teacher** creates exams, adds questions, assigns to students
+3. **Students** take exams, submit answers
+4. **System** auto-grades objective questions
+5. **Teacher** manually grades subjective questions
+6. **System** calculates results, rankings, and assigns credentials
+7. **Parents** monitor children's progress
+
+---
+
+## 🎨 Frontend UI/UX Requirements
+
+### **Teacher Dashboard Components**
+
+#### **Dashboard Overview Cards**
+- **Total Students Card:** Display with orange icon and count
+- **Subject Performance Card:** Show percentage with green icon (e.g., Mathematics: 70%)
+- **Overall Class Score Card:** Display with orange icon and percentage
+- **Exam Statistics Cards:** Total Exams, Completed, In Progress, Scheduled with respective icons
+
+#### **Top Students Section**
+- **Student Performance Cards:** Rank display with up/down arrows (↑01, ↑02, etc.)
+- **Overall Score Display:** Percentage with "Out of X" format
+- **Filtering Options:** Class, Form, Subject, Month, Rank selection
+- **Card Layout:** 3 prominent cards in row, followed by list view
+
+#### **Class Analytics Section**
+- **Radar Chart:** Topic-wise performance visualization
+- **AI Suggestions Box:** Red highlight for struggling areas with "View Suggestion" button
+- **Performance Metrics:** Algebra Fundamentals (86/100), Multiplication (33/100), etc.
+
+#### **Student Activity Feed**
+- **Activity Timeline:** Recent activities with timestamps
+- **Activity Types:** Exam completion, badge earning, certificate earning
+- **Time Format:** "1h ago", "1day ago", "3days ago", "2w ago"
+
+#### **Inbox Section**
+- **Message List:** Support messages, teacher communications
+- **Sender Information:** Teacher name and subject
+- **Message Preview:** Truncated message text with "View All" option
+
+### **Exam Builder Interface**
+
+#### **Exam Creation Workflow (5 Steps)**
+1. **Exam Info Tab:** Form fields for title, subject, description, type, class, difficulty, duration, marks, attempts
+2. **Content Upload Tab:** File upload area, external links, AI generation prompts
+3. **Exam Builder Tab:** Question creation with AI assistance
+4. **Preview Tab:** Exam preview before publishing
+5. **Publishing Tab:** Final publishing step
+
+#### **AI Integration Features**
+- **AI Prompt Sidebar:** Interactive chat interface with predefined suggestions
+- **Question Generation:** AI-powered question creation from uploaded content
+- **Simulation Results:** AI analysis with recommendations
+- **Adaptive Difficulty:** Toggle for automatic difficulty adjustment
+
+#### **Question Management**
+- **Question Types:** MCQs, Fill in Blanks, True/False, Short Answer, Long Answer
+- **Question Cards:** Display with marks, options, correct answers
+- **Add/Edit/Delete:** Full CRUD operations for questions
+- **Question Bank Integration:** Reusable question repository
+
+### **Grading Interface**
+
+#### **Grading Dashboard**
+- **Summary Statistics:** Total students, In-progress, Waiting grading, Completed
+- **Exam Cards:** Status tags (Published, Completed, Official, Practice, Waiting Grading)
+- **Filtering Options:** Class selection, grading type, status tabs
+- **Pagination:** "Showing 01 to 06 of 50 entries" with navigation
+
+#### **Detailed Grading Process (3 Steps)**
+1. **Exam Info:** Student performance overview, question details, rubric breakdown
+2. **Feedback:** AI-generated feedback with edit/copy/delete options
+3. **Resources:** Recommended learning resources with AI assistance
+
+#### **Question Success Rate Analysis**
+- **Individual Question Performance:** Success rate percentages with color coding
+- **Sorting Options:** By success rate, question number
+- **Visual Indicators:** Green for high success, red for low success
+
+### **Credential Management**
+
+#### **Credential Dashboard**
+- **Summary Cards:** Total Credentials, Issued by External, Issued by You
+- **Analytics Section:** Credential type breakdown (Badges, Certificates, Awards)
+- **Recently Issued List:** Recent credentials with issue dates and student names
+
+#### **Credential Repository**
+- **Available Types:** Predefined credential templates
+- **Creation Date:** When credential type was created
+- **Type Classification:** Badge, Certificate, Award
+
+#### **Issued Credentials Table**
+- **Detailed Information:** Title, Type, Class, Issued by, Date, Student Name
+- **Action Column:** Edit/Delete options
+- **Filtering:** Type, Issued by, Class, Date range
+- **Pagination:** Standard pagination controls
+
+### **Responsive Design Requirements**
+
+#### **Mobile Optimization**
+- **Responsive Cards:** Stack vertically on mobile devices
+- **Touch-Friendly:** Large touch targets for mobile interaction
+- **Collapsible Sidebar:** Mobile-friendly navigation
+- **Optimized Tables:** Horizontal scroll for data tables
+
+#### **Color Scheme**
+- **Primary Colors:** Dark teal (#2C5F5F), White (#FFFFFF)
+- **Accent Colors:** Orange (#FF6B35), Green (#4CAF50), Red (#F44336)
+- **Status Colors:** 
+  - Published: Teal
+  - Completed: Green
+  - In Progress: Orange
+  - Waiting Grading: Yellow
+  - Draft: Light Grey
+
+#### **Interactive Elements**
+- **Hover Effects:** Subtle animations on cards and buttons
+- **Loading States:** Skeleton loaders for data fetching
+- **Error Handling:** User-friendly error messages
+- **Success Feedback:** Toast notifications for actions
+
+### **Data Visualization Components**
+
+#### **Charts and Graphs**
+- **Radar Chart:** Topic-wise performance visualization
+- **Progress Bars:** Student performance indicators
+- **Trend Indicators:** Up/down arrows for performance changes
+- **Pie Charts:** Credential type distribution
+
+#### **Data Tables**
+- **Sortable Columns:** Click to sort by any column
+- **Search Functionality:** Real-time search across table data
+- **Filtering Options:** Multiple filter dropdowns
+- **Export Features:** PDF/Excel export capabilities
+
+---
+
+## 🎓 Student Module Frontend UI/UX Requirements
+
+### **Student Dashboard Components**
+
+#### **Dashboard Overview Cards**
+- **Current Rank Card:** Display rank with up/down arrows (e.g., "1,274 ↑36")
+- **National Ranking:** "Out of 2800 Student In The National Ranking"
+- **Performance Circle:** Circular progress bar showing average percentage (e.g., "85.5% Average")
+- **Subject Performance:** "Mathematics Avg. 95% | A+" with radar chart
+- **Exam Count:** Total completed exams with increase indicators (e.g., "250 ↑50")
+
+#### **Subject Progress Radar Chart**
+- **Topic Performance:** Algebra Fundamentals (90/100), Geometry Basics (80/100), Multiplication (33/100), Division (90/100), Fractions (50/100)
+- **Visual Indicators:** Color-coded performance levels
+- **Interactive Hover:** Show detailed scores on hover
+
+#### **Upcoming Exams Section**
+- **Exam Cards:** Title, subject, duration, questions count
+- **Action Buttons:** "Start Exam" with teal background
+- **Exam Details:** Physics, 10 Minutes, 10 Questions format
+
+#### **Achievements Summary**
+- **Credential Counts:** "02 Badges", "01 Certificates", "02 Awards"
+- **Recent Achievements:** Award title, icon, awarded date
+- **Achievement Modal:** Detailed view with quiz result, grade, issuer information
+
+### **Exam Taking Interface**
+
+#### **Exam Statistics Dashboard**
+- **Summary Cards:** Total Exams, Completed, In Progress, Average Score
+- **Tab Navigation:** Practice, Official, Library tabs
+- **Exam Queue:** Available exams with Start/Continue buttons
+- **Performed Exams:** Grid of exam cards with status tags
+
+#### **Exam Taking Screen**
+- **Question Navigation:** "Question 6 of 60" with "1 Mark"
+- **Question Display:** Question text with image/graph placeholders
+- **Answer Options:** Multiple choice buttons with selection indicators
+- **Progress Timeline:** Colored circles for Done (green), Empty (red), Flagged (pink)
+- **Timer Display:** "45:23:20" time remaining
+- **Progress Summary:** "Filled: 3, Empty: 57, Flag: 2"
+- **Flag Question:** "Flag This Question" button
+
+#### **Submission Process**
+- **Submission Alert Modal:** Warning about unanswered questions
+- **Review Options:** "Review questions" vs "Submit anyway"
+- **Confirmation:** Final submission confirmation
+
+### **Results & Performance Analytics**
+
+#### **Results Dashboard**
+- **Subject Progress Cards:** Mathematics (A, 86%), Science (D, 55%), English (C, 72%), etc.
+- **Performance Circle:** "85.5% Average" with grade display
+- **Radar Chart:** Topic-wise performance visualization
+- **AI Feedback:** Performance insights and improvement suggestions
+- **Highlights Section:** Strongest area, needs attention, exam pace, improvement trends
+
+#### **Detailed Exam Results**
+- **Result Board:** Obtained score (50%), grade (D), date, time taken
+- **Question Breakdown:** Total (60), Correct (30), Wrong (30)
+- **AI Feedback:** Personalized performance analysis
+- **Resource Suggestions:** Articles and videos for improvement
+- **Question Review:** Individual question analysis with correct/incorrect answers
+
+#### **Exam History**
+- **Attempt History Modal:** Multiple attempts with scores and dates
+- **Performance Tags:** "New High Score", "First Time", "Need Improvement"
+- **Improvement Indicators:** "+10% vs last attempt"
+
+### **Credentials & Achievements**
+
+#### **Credentials Dashboard**
+- **Summary Cards:** Total Credentials (60), Awards (10), Badges (05), Certificates (35), CPD Credit (10)
+- **Monthly Progress:** "↑2 this month" indicators
+- **Credential Table:** Type, Issued Date, Issued By, Account Status, Action columns
+- **Filtering Options:** Credential Type, Issued By, Date range
+- **Search Functionality:** Real-time search across credentials
+
+#### **Credential Details Modal**
+- **Award Display:** Large icon with title
+- **Quiz Result:** Score (80/100), percentage (80%), grade (B)
+- **Issuer Information:** Teacher name, role, profile picture
+- **Recipient Information:** Student name, class, profile picture
+- **Badge Description:** Detailed explanation of achievement
+
+### **Recommended Tasks & Learning**
+
+#### **Recommended Tasks Section**
+- **Task Cards:** "Retry 5 incorrect questions from English Quiz 2"
+- **Target Information:** "Target Grammar rules"
+- **Action Buttons:** "Start Exam" for each task
+- **Priority Indicators:** Based on weak topics and performance
+
+#### **Learning Resources**
+- **Resource Types:** Articles, Videos, Courses
+- **Resource Cards:** Title, type icon, description
+- **Action Buttons:** "View Resource" or "Start Learning"
+
+### **Student Profile & Navigation**
+
+#### **Sidebar Navigation**
+- **User Profile:** Profile picture, name, ID, homeroom teacher, form/class
+- **Navigation Menu:** Dashboard, Exams, Results, Credentials, Profile
+- **Active State:** Highlighted current section
+
+#### **Header Bar**
+- **Logo:** Academy branding
+- **User Controls:** Language selector, search, notifications, profile dropdown
+- **Breadcrumbs:** Current page navigation
+
+### **Responsive Design for Students**
+
+#### **Mobile Optimization**
+- **Touch-Friendly:** Large buttons for exam taking
+- **Swipe Navigation:** Swipe between questions
+- **Collapsible Sections:** Accordion-style content organization
+- **Mobile-First:** Optimized for mobile exam taking
+
+#### **Accessibility Features**
+- **Keyboard Navigation:** Full keyboard support for exam taking
+- **Screen Reader:** ARIA labels and descriptions
+- **High Contrast:** Support for high contrast mode
+- **Font Size:** Adjustable text size options
+
+### **Real-time Features for Students**
+
+#### **Live Updates**
+- **Timer Sync:** Real-time exam timer updates
+- **Auto-save:** Automatic answer saving
+- **Progress Sync:** Real-time progress updates
+- **Notification Alerts:** Real-time notifications for achievements
+
+#### **Offline Support**
+- **Offline Mode:** Continue exam when connection is restored
+- **Sync Queue:** Queue answers for sync when online
+- **Progress Backup:** Local storage of exam progress
+
+---
+
+## 🔄 Real-time Features
+
+### **Live Updates**
+- **WebSocket Integration:** Real-time exam status updates
+- **Live Grading:** Real-time grading progress
+- **Activity Feed:** Live student activity updates
+- **Notification System:** Real-time notifications for teachers
+
+### **Collaborative Features**
+- **Shared Exams:** Exam repository sharing between teachers
+- **Team Grading:** Multiple teachers can grade same exam
+- **Comment System:** Comments on student answers
+- **Review System:** Peer review for exam questions
+
+---
+
+---
+
+## 🛠️ **IMPLEMENTATION GUIDE & BEST PRACTICES**
+
+### **Database Implementation Strategy**
+
+#### **1. Indexing Strategy for Performance**
+```javascript
+// Critical Indexes for High Performance
+db.exams.createIndex({ "tenantId": 1, "teacherId": 1, "examStatus": 1 })
+db.exams.createIndex({ "classId": 1, "subjectId": 1, "examStatus": 1 })
+db.examQuestions.createIndex({ "examId": 1, "questionNumber": 1 })
+db.examAttempts.createIndex({ "studentId": 1, "examId": 1, "status": 1 })
+db.examAttempts.createIndex({ "examId": 1, "status": 1, "createdAt": -1 })
+db.studentPerformanceAnalytics.createIndex({ "studentId": 1, "classId": 1 })
+```
+
+#### **2. Data Aggregation Pipelines**
+```javascript
+// Example: Get Student Dashboard Summary
+db.studentPerformanceAnalytics.aggregate([
+  { $match: { studentId: ObjectId("..."), tenantId: ObjectId("...") } },
+  { $group: {
+    _id: null,
+    currentRank: { $first: "$currentRank" },
+    nationalRank: { $first: "$nationalRank" },
+    averageScore: { $avg: "$averageScore" },
+    totalExams: { $sum: 1 }
+  }}
+])
+
+// Example: Get Exam Statistics for Teacher
+db.exams.aggregate([
+  { $match: { teacherId: ObjectId("..."), tenantId: ObjectId("...") } },
+  { $group: {
+    _id: "$examStatus",
+    count: { $sum: 1 }
+  }}
+])
+```
+
+### **API Implementation Best Practices**
+
+#### **1. Request Validation with Zod**
+```typescript
+// Example: Create Exam Validation
+const createExamSchema = z.object({
+  examTitle: z.string().min(1).max(200),
+  description: z.string().max(1000),
+  classId: z.string().regex(/^[0-9a-fA-F]{24}$/),
+  subjectId: z.string().regex(/^[0-9a-fA-F]{24}$/),
+  examType: z.enum(['Official', 'Practice', 'Exam Repository']),
+  totalMarks: z.number().min(1).max(1000),
+  durationInMinutes: z.number().min(1).max(480),
+  startOn: z.string().datetime(),
+  endOn: z.string().datetime()
+})
+```
+
+#### **2. Response Caching Strategy**
+```typescript
+// Redis Caching Implementation
+const cacheKey = `exam:${examId}:details`
+const cachedData = await redis.get(cacheKey)
+if (cachedData) {
+  return JSON.parse(cachedData)
+}
+
+const examData = await Exam.findById(examId).populate('questions')
+await redis.setex(cacheKey, 600, JSON.stringify(examData)) // 10 minutes
+```
+
+#### **3. Error Handling Standards**
+```typescript
+// Standardized Error Response
+const handleError = (error: any, res: Response) => {
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation Error',
+      error: error.message,
+      statusCode: 400
+    })
+  }
+  
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format',
+      error: 'Invalid ObjectId',
+      statusCode: 400
+    })
+  }
+  
+  return res.status(500).json({
+    success: false,
+    message: 'Internal Server Error',
+    error: 'Something went wrong',
+    statusCode: 500
+  })
+}
+```
+
+### **Real-time Features Implementation**
+
+#### **1. WebSocket Integration**
+```typescript
+// Real-time Exam Timer Updates
+io.on('connection', (socket) => {
+  socket.on('join-exam', (examId) => {
+    socket.join(`exam-${examId}`)
+  })
+  
+  socket.on('exam-progress', (data) => {
+    io.to(`exam-${data.examId}`).emit('progress-update', data)
+  })
+})
+```
+
+#### **2. Auto-save Functionality**
+```typescript
+// Auto-save Student Answers
+const autoSaveAnswer = async (attemptId: string, questionId: string, answer: any) => {
+  await ExamAttemptLog.findOneAndUpdate(
+    { attemptId, questionId },
+    { 
+      studentAnswer: answer,
+      lastSaved: new Date()
+    },
+    { upsert: true }
+  )
+}
+```
+
+### **AI Integration Implementation**
+
+#### **1. Question Generation**
+```typescript
+// AI Question Generation Service
+const generateQuestions = async (content: string, prompt: string) => {
+  const aiResponse = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [
+      { role: "system", content: "You are an expert question generator for educational content." },
+      { role: "user", content: `Generate 10 MCQs from this content: ${content}. ${prompt}` }
+    ]
+  })
+  
+  return parseAIResponse(aiResponse.choices[0].message.content)
+}
+```
+
+#### **2. Performance Analytics**
+```typescript
+// AI-Powered Performance Analysis
+const analyzePerformance = async (studentId: string) => {
+  const performanceData = await getStudentPerformanceData(studentId)
+  
+  const aiAnalysis = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [
+      { role: "system", content: "Analyze student performance and provide insights." },
+      { role: "user", content: JSON.stringify(performanceData) }
+    ]
+  })
+  
+  return parseAIAnalysis(aiAnalysis.choices[0].message.content)
+}
+```
+
+### **Security Implementation**
+
+#### **1. Authentication & Authorization**
+```typescript
+// JWT Middleware
+const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '')
+  
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Access denied' })
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    req.user = decoded
+    next()
+  } catch (error) {
+    res.status(401).json({ success: false, message: 'Invalid token' })
+  }
+}
+```
+
+#### **2. Rate Limiting**
+```typescript
+// Rate Limiting for Exam Taking
+const examRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 exam starts per window
+  message: 'Too many exam attempts, please try again later'
+})
+```
+
+### **Testing Strategy**
+
+#### **1. Unit Tests**
+```typescript
+// Example: Exam Service Test
+describe('Exam Service', () => {
+  it('should create exam in draft status', async () => {
+    const examData = {
+      examTitle: 'Test Exam',
+      classId: '507f1f77bcf86cd799439011',
+      subjectId: '507f1f77bcf86cd799439012'
+    }
+    
+    const exam = await examService.createExam(examData, teacherId)
+    expect(exam.examStatus).toBe('Draft')
+    expect(exam.teacherId).toBe(teacherId)
+  })
+})
+```
+
+#### **2. Integration Tests**
+```typescript
+// Example: API Integration Test
+describe('Exam API', () => {
+  it('should create and publish exam', async () => {
+    const exam = await request(app)
+      .post('/academy/api/v1/exams')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send(examData)
+      .expect(201)
+    
+    await request(app)
+      .post(`/academy/api/v1/exams/${exam.body.data._id}/publish`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .expect(200)
+  })
+})
+```
+
+### **Deployment & Monitoring**
+
+#### **1. Environment Configuration**
+```env
+# Production Environment Variables
+NODE_ENV=production
+PORT=3000
+MONGODB_URI=mongodb://localhost:27017/academy_db
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=your-super-secret-jwt-key
+OPENAI_API_KEY=your-openai-api-key
+AWS_S3_BUCKET=academy-files
+```
+
+#### **2. Performance Monitoring**
+```typescript
+// Performance Metrics
+const performanceMetrics = {
+  responseTime: Date.now() - startTime,
+  memoryUsage: process.memoryUsage(),
+  cpuUsage: process.cpuUsage(),
+  activeConnections: server.connections
+}
+```
+
+---
+
+## 📋 **FINAL IMPLEMENTATION CHECKLIST**
+
+### **Phase 1: Database & Models (Week 1)**
+- [ ] Create all 24 database schemas
+- [ ] Set up MongoDB indexes for performance
+- [ ] Add enums to shared-lib
+- [ ] Create model files with validation
+- [ ] Set up database connection and configuration
+
+### **Phase 2: Core APIs (Week 2-3)**
+- [ ] Admin exam modes & grading APIs
+- [ ] Teacher exam management APIs
+- [ ] Question bank management
+- [ ] AI integration endpoints
+- [ ] Student dashboard APIs
+
+### **Phase 3: Exam Taking & Grading (Week 4-5)**
+- [ ] Student exam taking functionality
+- [ ] Real-time exam progress tracking
+- [ ] Auto-grading system
+- [ ] Manual grading workflow
+- [ ] Result calculation and analytics
+
+### **Phase 4: Advanced Features (Week 6-7)**
+- [ ] AI-powered question generation
+- [ ] Performance analytics
+- [ ] Credential management
+- [ ] Real-time notifications
+- [ ] File upload and management
+
+### **Phase 5: Testing & Optimization (Week 8)**
+- [ ] Comprehensive Postman collection
+- [ ] Unit and integration tests
+- [ ] Performance optimization
+- [ ] Security testing
+- [ ] Documentation completion
+
+---
+
+**Note:** This is a comprehensive exam module implementation guide that will handle high data volume efficiently with proper indexing, caching, and optimized queries. All APIs will be thoroughly tested with Postman collections before delivery. The UI will be pixel-perfect, mobile-responsive, and follow modern design principles with smooth animations and intuitive user experience. The system is designed for scalability, performance, and maintainability with complete documentation and testing coverage.
